@@ -29,6 +29,18 @@ namespace CustomDataGrid.Controls
     /// </remarks>
     public class GridCellsPanel : Panel
     {
+        /// <summary>
+        /// Minimum height, in device-independent pixels, that a data row is
+        /// measured to even when its cells render no content. A row that
+        /// measured to zero height would defeat <c>VirtualizingStackPanel</c>:
+        /// the panel can never fill its viewport with zero-height items, so it
+        /// keeps realizing containers until it has materialized the entire data
+        /// source (millions of rows), exhausting memory. Flooring the row height
+        /// keeps virtualization correct regardless of cell content. Not applied
+        /// to the header panel (see <see cref="IsHeaderPanel"/>).
+        /// </summary>
+        private const double MinRowHeight = 22d;
+
         private GridControl _grid;
         private bool _isLoaded;
 
@@ -238,6 +250,9 @@ namespace CustomDataGrid.Controls
         /// </summary>
         protected override Size MeasureOverride(Size availableSize)
         {
+            if (Children.Count == 0 && Columns != null)
+                RebuildCells();
+
             var widths = ResolveColumnWidths(availableSize.Width);
             double height = 0;
 
@@ -250,6 +265,11 @@ namespace CustomDataGrid.Controls
 
             double total = 0;
             foreach (var w in widths) total += w;
+
+            // Floor data-row height so a contentless row never collapses to 0px
+            // and silently disables virtualization (see MinRowHeight).
+            if (!IsHeaderPanel && height < MinRowHeight)
+                height = MinRowHeight;
 
             double resolvedWidth = double.IsInfinity(availableSize.Width) ? total : availableSize.Width;
             return new Size(resolvedWidth, height);

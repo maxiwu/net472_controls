@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
 using CustomDataGrid.Columns;
 using CustomDataGrid.Contracts;
 using CustomDataGrid.Contracts.Events;
@@ -82,8 +84,21 @@ namespace CustomDataGrid.Tests.Controls
             }
         }
 
+        /// <summary>
+        /// A minimal column with a real <see cref="GridColumn.CellTemplate"/> (a
+        /// <c>TextBlock</c> bound to <c>Label</c>), matching how every production
+        /// column type renders content. A column with no template would produce
+        /// zero-height rows, which itself defeats virtualization — that concern
+        /// is covered separately by the row-height floor in <c>GridCellsPanel</c>.
+        /// </summary>
         private sealed class TestColumn : GridColumn
         {
+            public TestColumn()
+            {
+                var textFactory = new FrameworkElementFactory(typeof(TextBlock));
+                textFactory.SetBinding(TextBlock.TextProperty, new Binding("Label"));
+                CellTemplate = new DataTemplate { VisualTree = textFactory };
+            }
         }
     }
 }
