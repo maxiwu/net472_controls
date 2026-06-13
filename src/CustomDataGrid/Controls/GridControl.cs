@@ -131,7 +131,7 @@ namespace CustomDataGrid.Controls
             nameof(ShowSelectionColumn),
             typeof(bool),
             typeof(GridControl),
-            new PropertyMetadata(false));
+            new PropertyMetadata(false, OnShowSelectionColumnChanged));
 
         /// <summary>
         /// Identifies the <see cref="IsReadOnly"/> dependency property.
@@ -225,10 +225,10 @@ namespace CustomDataGrid.Controls
         }
 
         /// <summary>
-        /// Gets or sets whether the built-in selection checkbox column is shown
-        /// as the leftmost column. Inserting / removing the column from
-        /// <see cref="Columns"/> is implemented by the built-in selection column
-        /// (Phase 6).
+        /// Gets or sets whether the built-in <see cref="Columns.SelectionColumn"/>
+        /// is shown as the leftmost column. Toggling this inserts the column at
+        /// index 0 of <see cref="Columns"/> (or removes the existing one), via
+        /// <see cref="OnShowSelectionColumnChanged"/>.
         /// </summary>
         public bool ShowSelectionColumn
         {
@@ -274,6 +274,39 @@ namespace CustomDataGrid.Controls
             var flat = new FlatRowCollection(source);
             flat.SingleExpandMode = grid.SingleExpandMode;
             return flat;
+        }
+
+        private static void OnShowSelectionColumnChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var grid = (GridControl)d;
+            var columns = grid.Columns;
+            if (columns == null) return;
+
+            if ((bool)e.NewValue)
+            {
+                // Insert as the leftmost column, unless one is already present.
+                if (!HasSelectionColumn(columns))
+                    columns.Insert(0, new SelectionColumn());
+            }
+            else
+            {
+                for (int i = columns.Count - 1; i >= 0; i--)
+                {
+                    if (columns[i] is SelectionColumn)
+                        columns.RemoveAt(i);
+                }
+            }
+        }
+
+        private static bool HasSelectionColumn(GridColumnCollection columns)
+        {
+            for (int i = 0; i < columns.Count; i++)
+            {
+                if (columns[i] is SelectionColumn)
+                    return true;
+            }
+
+            return false;
         }
 
         private static void OnSingleExpandModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
