@@ -730,18 +730,31 @@ Implementation Task List
 - Applied via `GridControl.ItemContainerStyleSelector`, so each
   realized `GridRowPresenter` gets the right style.
 
-**Task 7.2 — Selectors/GridCellStyleSelector.cs**
+**Task 7.2 — Cell visual states (attached properties + triggers)**
 
-- Extends `StyleSelector`.
+> *Design change (2026-06-14): the original plan was a
+> `Selectors/GridCellStyleSelector : StyleSelector`. That was dropped — a
+> `StyleSelector` is stateless and evaluated only once when a cell container
+> is created, so it cannot react to selection / disable / edit changes that
+> happen afterward, and a cell `ContentControl` exposes no row-disabled /
+> highlighted / editing properties for it to switch on. Cell visual states
+> are instead driven by attached properties set by `GridCellsPanel`, with
+> triggers in the shared cell `Style`.*
 
-- Returns `DisabledCellStyle` when the parent row's `IsEnabled=false`
-  (or the row's parent group is disabled).
+- `Controls/GridCell.cs` defines attached properties set by `GridCellsPanel`
+  on each cell `ContentControl`:
+  - `GridCell.IsRowDisabled` — `true` when the cell's row is disabled, i.e.
+    the row's `IsEnabled=false` **or** its owning group is disabled.
+  - `GridCell.IsRowHighlighted` — mirrors the row's `IsHighlighted`.
+  - `GridCell.IsEditing` — `true` while this specific cell is in edit mode.
 
-- Returns `HighlightedCellStyle` when `IsHighlighted=true`.
+- `GridCellsPanel` sets these when it builds cells and refreshes them on
+  `GridControl.EditStateChanged` and on the row's `PropertyChanged`
+  (`IsEnabled` / `IsHighlighted`), so the states react live.
 
-- Returns `EditingCellStyle` when the cell is currently in edit mode.
-
-- Applied to cells materialized by the `GridCellsPanel`.
+- The shared cell `Style` in `Generic.xaml` carries the
+  disabled / highlighted / editing trigger setters (the former
+  `DisabledCellStyle` / `HighlightedCellStyle` / `EditingCellStyle`).
 
 **Task 7.3 — Themes/Generic.xaml**
 

@@ -43,6 +43,7 @@ namespace CustomDataGrid.Controls
 
         private GridControl _grid;
         private bool _isLoaded;
+        private Contracts.IGridRow _subscribedRow;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GridCellsPanel"/> class.
@@ -51,6 +52,7 @@ namespace CustomDataGrid.Controls
         {
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
+            DataContextChanged += OnDataContextChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -73,11 +75,50 @@ namespace CustomDataGrid.Controls
                 _grid.EditStateChanged -= OnEditStateChanged;
                 _grid = null;
             }
+
+            UnsubscribeRow();
         }
 
         private void OnEditStateChanged(object sender, EventArgs e)
         {
             RefreshCellTemplates();
+            RefreshCellVisualStates();
+        }
+
+        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            // The container is recycled onto a different row: re-target the
+            // row PropertyChanged subscription and re-stamp cell visual state.
+            UnsubscribeRow();
+            SubscribeRow();
+            RefreshCellVisualStates();
+        }
+
+        private void SubscribeRow()
+        {
+            if (IsHeaderPanel) return;
+
+            var row = DataContext as Contracts.IGridRow;
+            _subscribedRow = row;
+
+            var inpc = row as System.ComponentModel.INotifyPropertyChanged;
+            if (inpc != null)
+                inpc.PropertyChanged += OnRowPropertyChanged;
+        }
+
+        private void UnsubscribeRow()
+        {
+            var inpc = _subscribedRow as System.ComponentModel.INotifyPropertyChanged;
+            if (inpc != null)
+                inpc.PropertyChanged -= OnRowPropertyChanged;
+
+            _subscribedRow = null;
+        }
+
+        private void OnRowPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == "IsEnabled" || e.PropertyName == "IsHighlighted" || e.PropertyName == null)
+                RefreshCellVisualStates();
         }
 
         private GridControl FindAncestorGridControl()
@@ -194,20 +235,74 @@ namespace CustomDataGrid.Controls
             var columns = Columns;
             if (columns == null) return;
 
+            var cellStyle = IsHeaderPanel ? null : TryFindResource("GridCellStyle") as Style;
+
             foreach (var column in columns)
             {
                 var cell = new ContentControl();
 
                 if (IsHeaderPanel)
+                {
                     cell.Content = column.Header;
+                }
                 else
+                {
                     cell.SetBinding(ContentControl.ContentProperty, new Binding("."));
+                    if (cellStyle != null)
+                        cell.Style = cellStyle;
+                }
 
                 Children.Add(cell);
             }
 
+            if (!IsHeaderPanel && _subscribedRow == null)
+                SubscribeRow();
+
             RefreshCellTemplates();
+            RefreshCellVisualStates();
             InvalidateMeasure();
+        }
+
+        /// <summary>
+        /// Stamps each cell's visual-state attached properties
+        /// (<see cref="GridCell.IsRowDisabledProperty"/>,
+        /// <see cref="GridCell.IsRowHighlightedProperty"/>,
+        /// <see cref="GridCell.IsEditingProperty"/>) from the current row and grid
+        /// edit state, so the cell <c>Style</c> triggers in <c>Generic.xaml</c> can
+        /// react. No-op for the header panel (<see cref="IsHeaderPanel"/>).
+        /// </summary>
+        /// <remarks>
+        /// The disabled-group cascade needs no handling here: a disabled group
+        /// cannot expand (see <c>FlatRowCollection.ExpandGroup</c>), so its item
+        /// rows are never realized while it is disabled. A cell's row-disabled
+        /// state is therefore just the row's own <see cref="Contracts.IGridRow.IsEnabled"/>.
+        /// </remarks>
+        private void RefreshCellVisualStates()
+        {
+            if (IsHeaderPanel) return;
+
+            var columns = Columns;
+            if (columns == null) return;
+
+            var row = DataContext as Contracts.IGridRow;
+            var grid = _grid;
+
+            bool rowDisabled = row != null && !row.IsEnabled;
+            bool rowHighlighted = row != null && row.IsHighlighted;
+
+            for (int i = 0; i < Children.Count && i < columns.Count; i++)
+            {
+                var cell = (ContentControl)Children[i];
+                var column = columns[i];
+
+                bool isEditingThisCell = grid != null && grid.IsEditing
+                    && ReferenceEquals(grid.EditingRow, row)
+                    && ReferenceEquals(grid.EditingColumn, column);
+
+                GridCell.SetIsRowDisabled(cell, rowDisabled);
+                GridCell.SetIsRowHighlighted(cell, rowHighlighted);
+                GridCell.SetIsEditing(cell, isEditingThisCell);
+            }
         }
 
         /// <summary>
