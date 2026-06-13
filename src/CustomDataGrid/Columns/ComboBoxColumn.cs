@@ -40,15 +40,15 @@ namespace CustomDataGrid.Columns
             nameof(ItemsSource),
             typeof(IEnumerable),
             typeof(ComboBoxColumn),
-            new PropertyMetadata(null));
+            new FrameworkPropertyMetadata(null, OnTemplateInputChanged));
 
         static ComboBoxColumn()
         {
+            // Binding is declared on the base GridColumn, so override its
+            // metadata here to add the template-rebuild callback. ItemsSource is
+            // declared on this type, so its callback is set in Register above —
+            // OverrideMetadata cannot target the declaring type.
             BindingProperty.OverrideMetadata(
-                typeof(ComboBoxColumn),
-                new FrameworkPropertyMetadata(null, OnTemplateInputChanged));
-
-            ItemsSourceProperty.OverrideMetadata(
                 typeof(ComboBoxColumn),
                 new FrameworkPropertyMetadata(null, OnTemplateInputChanged));
         }
